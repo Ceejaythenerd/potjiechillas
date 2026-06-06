@@ -1005,16 +1005,263 @@
             }
         }
 
-        function exportData() {
+        // Render Members
+        function renderMembers() {
+            const container = document.getElementById('member-container');
+            container.innerHTML = '';
+            
+            members.forEach((member, idx) => {
+                const row = document.createElement('div');
+                row.className = 'member-row';
+                
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.placeholder = 'Member name';
+                nameInput.value = member.name;
+                nameInput.onchange = () => {
+                    member.name = nameInput.value;
+                    saveData();
+                };
+
+                const prefsDisplay = document.createElement('div');
+                prefsDisplay.textContent = member.preferences.join(', ') || 'None';
+                prefsDisplay.style.padding = '0.75rem';
+
+                const contribInput = document.createElement('input');
+                contribInput.type = 'number';
+                contribInput.value = member.contribution;
+                contribInput.onchange = () => {
+                    member.contribution = parseInt(contribInput.value) || 0;
+                    updateVisuals();
+                    saveData();
+                };
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'btn-remove';
+                removeBtn.textContent = 'Remove';
+                removeBtn.onclick = () => {
+                    members.splice(idx, 1);
+                    renderMembers();
+                    updateVisuals();
+                    saveData();
+                };
+
+                row.appendChild(nameInput);
+                row.appendChild(prefsDisplay);
+                row.appendChild(contribInput);
+                row.appendChild(removeBtn);
+                container.appendChild(row);
+            });
+
+            updateMemberCount();
+        }
+
+        // Render Preferences
+        function renderPreferences() {
+            const container = document.getElementById('preferences-list');
+            container.innerHTML = '';
+            
+            commonPreferences.forEach(pref => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.onchange = () => {
+                    // This is just for display - actual preferences are edited per member
+                };
+                
+                const span = document.createElement('span');
+                span.textContent = pref;
+                
+                label.appendChild(checkbox);
+                label.appendChild(span);
+                container.appendChild(label);
+            });
+        }
+
+        // Update Visuals
+        function updateVisuals() {
+            const budgetValues = {};
+            categories.forEach(cat => {
+                budgetValues[cat] = parseInt(document.getElementById(`input-${cat}`).value) || 0;
+            });
+
+            const totalBudget = Object.values(budgetValues).reduce((a, b) => a + b, 0);
+            const totalContributed = members.reduce((sum, m) => sum + (m.contribution || 0), 0);
+            const memberCount = members.filter(m => m.name.trim()).length || members.length;
+            const perPerson = memberCount > 0 ? Math.round(totalBudget / memberCount) : 0;
+
+            document.getElementById('capacity-display').textContent = `R${totalBudget}`;
+            document.getElementById('total-spent').textContent = `R${totalBudget}`;
+            document.getElementById('dynamic-total-display').textContent = `Pool: R${totalContributed}`;
+            document.getElementById('per-person').textContent = `R${perPerson}`;
+
+            const remaining = totalContributed - totalBudget;
+            const remainingDisplay = document.getElementById('remaining-display');
+            const remainingLabel = document.getElementById('remaining-label');
+            
+            if (remaining >= 0) {
+                remainingDisplay.textContent = `R${remaining}`;
+                remainingDisplay.className = 'summary-value good';
+                remainingLabel.textContent = 'Remaining';
+                document.getElementById('over-budget-alert').innerHTML = '';
+            } else {
+                remainingDisplay.textContent = `R${Math.abs(remaining)}`;
+                remainingDisplay.className = 'summary-value warning';
+                remainingLabel.textContent = 'Over Budget';
+                document.getElementById('over-budget-alert').innerHTML = `
+                    <div class="over-budget-warning">⚠️ Over budget by R${Math.abs(remaining)}</div>
+                `;
+            }
+
+            // Update bar chart
+            const totalForBar = totalBudget || 1;
+            Object.keys(budgetValues).forEach(cat => {
+                const percentage = (budgetValues[cat] / totalForBar) * 100;
+                document.getElementById(`bar-${cat}`).style.width = `${percentage}%`;
+                document.getElementById(`val-${cat}`).textContent = `R${budgetValues[cat]}`;
+            });
+        }
+
+        function updateMemberCount() {
+            const count = members.length;
+            document.getElementById('member-count').textContent = count;
+        }
+
+        function addMember() {
+            members.push({ name: '', preferences: [], contribution: 200 });
+            renderMembers();
+            updateVisuals();
             saveData();
-            const data = localStorage.getItem(STORAGE_KEY);
-            const dataStr = JSON.stringify(JSON.parse(data), null, 2);
+        }
+
+        function removeLastMember() {
+            if (members.length > 1) {
+                members.pop();
+                renderMembers();
+                updateVisuals();
+                saveData();
+            }
+        }
+
+        // Report Generation
+        function generateReport() {
+            const eventName = document.getElementById('event-name').value || 'Potjie Event';
+            const eventDate = document.getElementById('event-date').value || 'TBD';
+            const eventLocation = document.getElementById('event-location').value || 'TBD';
+            const eventTime = document.getElementById('event-time').value || 'TBD';
+
+            const budgetValues = {};
+            categories.forEach(cat => {
+                budgetValues[cat] = parseInt(document.getElementById(`input-${cat}`).value) || 0;
+            });
+
+            const totalBudget = Object.values(budgetValues).reduce((a, b) => a + b, 0);
+            const totalContributed = members.reduce((sum, m) => sum + (m.contribution || 0), 0);
+            const memberCount = members.filter(m => m.name.trim()).length || 1;
+
+            let html = `
+                <div class="report-section">
+                    <h3>Event Information</h3>
+                    <p><strong>Event:</strong> ${eventName}</p>
+                    <p><strong>Date:</strong> ${eventDate}</p>
+                    <p><strong>Location:</strong> ${eventLocation}</p>
+                    <p><strong>Time:</strong> ${eventTime}</p>
+                </div>
+
+                <div class="report-section">
+                    <h3>Squad Roster</h3>
+                    <div class="roster-summary">
+            `;
+
+            members.forEach(member => {
+                if (member.name.trim()) {
+                    html += `
+                        <div class="roster-item">
+                            <strong>${member.name}</strong>
+                            <div class="contribution">Contribution: R${member.contribution}</div>
+                            <div class="preferences">${member.preferences.join(', ') || 'No preferences'}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            html += `
+                    </div>
+                </div>
+
+                <div class="report-section">
+                    <h3>Budget Breakdown</h3>
+                    <div class="budget-report">
+                        <div class="budget-item meat">
+                            <div class="category">Meat</div>
+                            <div class="amount">R${budgetValues.meat}</div>
+                        </div>
+                        <div class="budget-item veg">
+                            <div class="category">Veg & Starch</div>
+                            <div class="amount">R${budgetValues.veg}</div>
+                        </div>
+                        <div class="budget-item snacks">
+                            <div class="category">Snacks</div>
+                            <div class="amount">R${budgetValues.snacks}</div>
+                        </div>
+                        <div class="budget-item drinks">
+                            <div class="category">Drinks</div>
+                            <div class="amount">R${budgetValues.drinks}</div>
+                        </div>
+                        <div class="budget-item supplies">
+                            <div class="category">Supplies</div>
+                            <div class="amount">R${budgetValues.supplies}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="report-section">
+                    <h3>Summary</h3>
+                    <p><strong>Total Budget:</strong> R${totalBudget}</p>
+                    <p><strong>Total Contributions:</strong> R${totalContributed}</p>
+                    <p><strong>Per Person Cost:</strong> R${Math.round(totalBudget / memberCount)}</p>
+                    <p><strong>Status:</strong> ${totalContributed >= totalBudget ? '✅ Fully Funded' : '❌ Under Funded'}</p>
+                </div>
+
+                <div class="report-actions">
+                    <button class="btn-primary" onclick="window.print()">🖨️ Print</button>
+                    <button class="btn-secondary" onclick="closeReport()">Close</button>
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = html;
+            document.getElementById('reportModal').classList.add('show');
+        }
+
+        function closeReport() {
+            document.getElementById('reportModal').classList.remove('show');
+        }
+
+        // Export/Import
+        function exportData() {
+            const data = {
+                eventName: document.getElementById('event-name').value,
+                eventDate: document.getElementById('event-date').value,
+                eventLocation: document.getElementById('event-location').value,
+                eventTime: document.getElementById('event-time').value,
+                members: members,
+                budget: {}
+            };
+
+            categories.forEach(cat => {
+                data.budget[cat] = parseInt(document.getElementById(`input-${cat}`).value) || 0;
+            });
+
+            const dataStr = JSON.stringify(data, null, 2);
             const dataBlob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(dataBlob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `potjie_event_${new Date().toISOString().split('T')[0]}.json`;
+            link.download = `potjie-plan-${new Date().toISOString().split('T')[0]}.json`;
             link.click();
+            URL.revokeObjectURL(url);
         }
 
         function showImportDialog() {
@@ -1026,414 +1273,45 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-                    location.reload();
+                    document.getElementById('event-name').value = data.eventName || '';
+                    document.getElementById('event-date').value = data.eventDate || '';
+                    document.getElementById('event-location').value = data.eventLocation || '';
+                    document.getElementById('event-time').value = data.eventTime || '';
+                    members = data.members || [];
+
+                    categories.forEach(cat => {
+                        const value = data.budget?.[cat] || 0;
+                        document.getElementById(`input-${cat}`).value = value;
+                    });
+
+                    renderMembers();
+                    updateVisuals();
+                    alert('✅ Data imported successfully!');
                 } catch (err) {
-                    alert('Invalid file format');
+                    alert('❌ Failed to import data: ' + err.message);
                 }
             };
             reader.readAsText(file);
         }
 
-        // Member Management
-        function renderMembers() {
-            const container = document.getElementById('member-container');
-            container.innerHTML = '';
-            
-            members.forEach((member, index) => {
-                const row = document.createElement('div');
-                row.className = 'member-row';
-                row.innerHTML = `
-                    <input type="text" placeholder="Name" value="${member.name || ''}" 
-                           onchange="updateMember(${index}, 'name', this.value)" 
-                           onkeypress="handleKeyPress(event, ${index})">
-                    <select onchange="updateMember(${index}, 'preferences', this.value)">
-                        <option value="">Select Preferences...</option>
-                        ${commonPreferences.map(p => `<option value="${p}" ${member.preferences?.includes(p) ? 'selected' : ''}>${p}</option>`).join('')}
-                    </select>
-                    <input type="number" placeholder="R200" value="${member.contribution || 200}" min="0" step="50"
-                           onchange="updateMember(${index}, 'contribution', Number(this.value))">
-                    <button class="btn-remove" onclick="removeMember(${index})" title="Remove member">✕</button>
-                `;
-                container.appendChild(row);
-            });
-
-            updateMemberCount();
-        }
-
-        function updateMember(index, field, value) {
-            if (field === 'preferences') {
-                if (value && !members[index].preferences.includes(value)) {
-                    members[index].preferences.push(value);
-                }
-            } else {
-                members[index][field] = value;
-            }
-            saveData();
-            calculatePool();
-        }
-
-        function addMember() {
-            members.push({ name: '', preferences: [], contribution: 200 });
-            renderMembers();
-            saveData();
-        }
-
-        function removeLastMember() {
-            if (members.length > 1) {
-                members.pop();
-                renderMembers();
-                saveData();
-                calculatePool();
-            }
-        }
-
-        function removeMember(index) {
-            members.splice(index, 1);
-            renderMembers();
-            saveData();
-            calculatePool();
-        }
-
-        function updateMemberCount() {
-            document.getElementById('member-count').textContent = members.length;
-        }
-
-        function handleKeyPress(event, index) {
-            if (event.key === 'Enter') {
-                event.target.blur();
-            }
-        }
-
-        // Preferences UI
-        function renderPreferences() {
-            const container = document.getElementById('preferences-list');
-            container.innerHTML = commonPreferences.map(pref => `
-                <div class="checkbox-item">
-                    <input type="checkbox" id="pref-${pref}" onchange="togglePreferenceFilter('${pref}', this.checked)">
-                    <label for="pref-${pref}">${pref}</label>
-                </div>
-            `).join('');
-        }
-
-        function togglePreferenceFilter(pref, checked) {
-            // This could be used for filtering in future
-        }
-
-        // Pool Calculation
-        function calculatePool() {
-            let sum = 0;
-            members.forEach(m => {
-                sum += Number(m.contribution) || 0;
-            });
-            maxBudget = sum;
-            
-            document.getElementById('dynamic-total-display').innerText = `Pool: R${maxBudget}`;
-            document.getElementById('capacity-display').innerText = `R${maxBudget}`;
-            
-            updateVisuals();
-        }
-
-        // Budget Visuals
-        function updateVisuals() {
-            let totalSpent = 0;
-
-            categories.forEach(cat => {
-                const val = parseInt(document.getElementById(`input-${cat}`).value) || 0;
-                document.getElementById(`val-${cat}`).innerText = `R${val}`;
-                totalSpent += val;
-            });
-
-            document.getElementById('total-spent').innerText = `R${totalSpent}`;
-
-            const remaining = maxBudget - totalSpent;
-            const remainingEl = document.getElementById('remaining-display');
-            const alertBox = document.getElementById('over-budget-alert');
-            
-            if (remaining < 0) {
-                remainingEl.innerText = `R${Math.abs(remaining)}`;
-                remainingEl.className = 'summary-value warning';
-                document.getElementById('remaining-label').innerText = 'Over Budget';
-                alertBox.innerHTML = `
-                    <div class="over-budget-warning">
-                        ⚠️ Over budget by R${Math.abs(remaining)}. Adjust allocations!
-                    </div>
-                `;
-            } else {
-                remainingEl.innerText = `R${remaining}`;
-                remainingEl.className = 'summary-value good';
-                document.getElementById('remaining-label').innerText = 'Remaining';
-                alertBox.innerHTML = '';
-            }
-
-            // Per person cost
-            const perPerson = members.length > 0 ? Math.round((totalSpent / members.length) * 100) / 100 : 0;
-            document.getElementById('per-person').innerText = `R${perPerson}`;
-
-            // Stacked bar
-            const scaleBase = Math.max(totalSpent, maxBudget);
-            const divisor = scaleBase === 0 ? 1 : scaleBase;
-            
-            categories.forEach(cat => {
-                const val = parseInt(document.getElementById(`input-${cat}`).value) || 0;
-                const percentage = (val / divisor) * 100;
-                document.getElementById(`bar-${cat}`).style.width = `${percentage}%`;
-            });
-
-            saveData();
-        }
-
-        function attachEventListeners() {
-            document.querySelectorAll('.contrib-input').forEach(input => {
-                input.addEventListener('input', calculatePool);
-            });
-
-            categories.forEach(cat => {
-                document.getElementById(`input-${cat}`).addEventListener('input', updateVisuals);
-            });
-        }
-
-        // Report Generation
-        function generateReport() {
-            const eventName = document.getElementById('event-name').value || 'Potjie Chillas';
-            const eventDate = document.getElementById('event-date').value || 'TBD';
-            const eventLocation = document.getElementById('event-location').value || 'TBD';
-            const eventTime = document.getElementById('event-time').value || 'TBD';
-
-            // Active members
-            const activeMembers = members.filter(m => m.name || m.contribution > 0);
-
-            // Preference summary
-            const preferenceMap = {};
-            activeMembers.forEach(member => {
-                member.preferences.forEach(pref => {
-                    preferenceMap[pref] = (preferenceMap[pref] || []);
-                    if (!preferenceMap[pref].includes(member.name)) {
-                        preferenceMap[pref].push(member.name);
-                    }
-                });
-            });
-
-            // Budget data
-            const budgetData = {};
-            let totalSpent = 0;
-            categories.forEach(cat => {
-                budgetData[cat] = parseInt(document.getElementById(`input-${cat}`).value) || 0;
-                totalSpent += budgetData[cat];
-            });
-
-            // Shopping list suggestions
-            const shoppingList = {
-                meat: `Approximately ${Math.ceil(activeMembers.length * 0.3)}kg (R${budgetData.meat})`,
-                veg: `${Math.ceil(activeMembers.length * 0.5)}kg vegetables & ${Math.ceil(activeMembers.length * 0.3)}kg starch (R${budgetData.veg})`,
-                snacks: `Various snacks assortment (R${budgetData.snacks})`,
-                drinks: `${Math.ceil(activeMembers.length * 1.5)} liters drinks mix (R${budgetData.drinks})`,
-                supplies: `Wood, ice, charcoal (R${budgetData.supplies})`
-            };
-
-            // Pre-event checklist
-            const checklist = [
-                { task: 'Buy groceries and supplies', completed: false },
-                { task: 'Prepare marinades and prep work', completed: false },
-                { task: 'Check weather forecast', completed: false },
-                { task: 'Confirm guest RSVPs', completed: false },
-                { task: 'Prepare utensils and equipment', completed: false },
-                { task: 'Arrange seating area', completed: false },
-                { task: 'Test braai/potjie', completed: false },
-                { task: 'Prepare drinks station', completed: false }
-            ];
-
-            // Build report
-            let reportHTML = `
-                <div class="report-section">
-                    <h3>📅 Event Information</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
-                        <div style="background-color: #f9f9f9; padding: 1rem; border-radius: 8px;">
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Event Name</div>
-                            <div style="font-weight: 600; margin-top: 0.25rem;">${eventName}</div>
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 1rem; border-radius: 8px;">
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Date</div>
-                            <div style="font-weight: 600; margin-top: 0.25rem;">${eventDate}</div>
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 1rem; border-radius: 8px;">
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Time</div>
-                            <div style="font-weight: 600; margin-top: 0.25rem;">${eventTime}</div>
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 1rem; border-radius: 8px;">
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Location</div>
-                            <div style="font-weight: 600; margin-top: 0.25rem;">${eventLocation}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="report-section">
-                    <h3>👥 Squad Summary</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
-                        <div style="background-color: #f9f9f9; padding: 1rem; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">${activeMembers.length}</div>
-                            <div style="font-size: 0.85rem; color: var(--text-muted);">Total Members</div>
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 1rem; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">R${maxBudget}</div>
-                            <div style="font-size: 0.85rem; color: var(--text-muted);">Total Pool</div>
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 1rem; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">R${Math.round((totalSpent / activeMembers.length) * 100) / 100}</div>
-                            <div style="font-size: 0.85rem; color: var(--text-muted);">Per Person</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="report-section">
-                    <h3>👫 Squad Members & Contributions</h3>
-                    <div class="roster-summary">
-                        ${activeMembers.map(m => `
-                            <div class="roster-item">
-                                <strong>${m.name || 'Guest'}</strong>
-                                <div class="contribution">R${m.contribution}</div>
-                                ${m.preferences.length > 0 ? `<div class="preferences"><strong>Preferences:</strong> ${m.preferences.join(', ')}</div>` : '<div class="preferences"><em>No preferences</em></div>'}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-
-                <div class="report-section">
-                    <h3>💰 Budget Breakdown</h3>
-                    <div class="budget-report">
-                        <div class="budget-item meat">
-                            <div class="category">🥩 Meat</div>
-                            <div class="amount">R${budgetData.meat}</div>
-                        </div>
-                        <div class="budget-item veg">
-                            <div class="category">🥬 Veg & Starch</div>
-                            <div class="amount">R${budgetData.veg}</div>
-                        </div>
-                        <div class="budget-item snacks">
-                            <div class="category">🍪 Snacks</div>
-                            <div class="amount">R${budgetData.snacks}</div>
-                        </div>
-                        <div class="budget-item drinks">
-                            <div class="category">🍹 Drinks</div>
-                            <div class="amount">R${budgetData.drinks}</div>
-                        </div>
-                        <div class="budget-item supplies">
-                            <div class="category">🪵 Supplies</div>
-                            <div class="amount">R${budgetData.supplies}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // Preferences
-            if (Object.keys(preferenceMap).length > 0) {
-                const sortedPrefs = Object.entries(preferenceMap).sort((a, b) => b[1].length - a[1].length);
-                reportHTML += `
-                    <div class="report-section">
-                        <h3>🍽️ Dietary Preferences & Restrictions</h3>
-                        <div class="preferences-summary">
-                            ${sortedPrefs.map(([pref, names]) => `
-                                <div class="preference-card">
-                                    <h4>${pref} <span class="preference-count">${names.length} ${names.length === 1 ? 'person' : 'people'}</span></h4>
-                                    <ul class="preference-list">
-                                        ${names.map(name => `<li>• ${name}</li>`).join('')}
-                                    </ul>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Shopping List
-            reportHTML += `
-                <div class="report-section">
-                    <h3>🛒 Shopping List & Quantities</h3>
-                    <div class="shopping-list">
-                        <div class="shopping-category">
-                            <h4>🥩 Meat</h4>
-                            <div class="shopping-item">
-                                <span>${shoppingList.meat}</span>
-                            </div>
-                        </div>
-                        <div class="shopping-category">
-                            <h4>🥬 Vegetables & Starch</h4>
-                            <div class="shopping-item">
-                                <span>${shoppingList.veg}</span>
-                            </div>
-                        </div>
-                        <div class="shopping-category">
-                            <h4>🍪 Snacks</h4>
-                            <div class="shopping-item">
-                                <span>${shoppingList.snacks}</span>
-                            </div>
-                        </div>
-                        <div class="shopping-category">
-                            <h4>🍹 Drinks</h4>
-                            <div class="shopping-item">
-                                <span>${shoppingList.drinks}</span>
-                            </div>
-                        </div>
-                        <div class="shopping-category">
-                            <h4>🪵 Supplies</h4>
-                            <div class="shopping-item">
-                                <span>${shoppingList.supplies}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // Checklist
-            reportHTML += `
-                <div class="report-section">
-                    <h3>✅ Pre-Event Checklist</h3>
-                    <ul class="checklist">
-                        ${checklist.map((item, idx) => `
-                            <li class="checklist-item">
-                                <input type="checkbox" id="check-${idx}" onchange="this.parentElement.classList.toggle('completed')">
-                                <label for="check-${idx}">${item.task}</label>
-                            </li>
-                        `).join('')}
-                    </ul>
-                </div>
-            `;
-
-            // Report Actions
-            reportHTML += `
-                <div class="report-actions">
-                    <button class="btn-primary" onclick="window.print()" style="flex: 1;">🖨️ Print Report</button>
-                    <button class="btn-secondary" onclick="exportReportPDF()" style="flex: 1;">📄 Export PDF</button>
-                    <button class="btn-secondary" onclick="copyReportToClipboard()" style="flex: 1;">📋 Copy</button>
-                </div>
-            `;
-
-            document.getElementById('reportContent').innerHTML = reportHTML;
-            document.getElementById('reportModal').classList.add('show');
-        }
-
-        function closeReport() {
-            document.getElementById('reportModal').classList.remove('show');
-        }
-
-        function exportReportPDF() {
-            alert('PDF export requires a third-party library. Use Print → Save as PDF for best results!');
-        }
-
-        function copyReportToClipboard() {
-            const reportContent = document.getElementById('reportContent').innerText;
-            navigator.clipboard.writeText(reportContent).then(() => {
-                alert('Report copied to clipboard!');
-            });
-        }
-
         function clearForm() {
-            if (confirm('Clear all data? This cannot be undone!')) {
+            if (confirm('Are you sure you want to clear all data?')) {
+                document.getElementById('event-name').value = '';
+                document.getElementById('event-date').value = '';
+                document.getElementById('event-location').value = '';
+                document.getElementById('event-time').value = '';
+                members = [];
+                initializeDefaultMembers();
+                categories.forEach(cat => {
+                    document.getElementById(`input-${cat}`).value = 0;
+                });
+                renderMembers();
+                renderPreferences();
+                updateVisuals();
                 localStorage.removeItem(STORAGE_KEY);
-                location.reload();
             }
         }
 
@@ -1442,20 +1320,13 @@
             localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
         }
 
-        // Load dark mode preference
-        if (localStorage.getItem('darkMode') === 'true') {
-            document.body.classList.add('dark-mode');
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('reportModal');
-            if (event.target === modal) {
-                modal.classList.remove('show');
+        function attachEventListeners() {
+            if (localStorage.getItem('darkMode') === 'true') {
+                document.body.classList.add('dark-mode');
             }
         }
 
-        // Initialize on load
+        // Start the app
         window.addEventListener('load', init);
     </script>
 </body>
