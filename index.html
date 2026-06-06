@@ -184,6 +184,7 @@
 
         .member-controls {
             display: flex;
+            flex-direction: column;
             gap: 0.5rem;
             margin-bottom: 1rem;
         }
@@ -1009,29 +1010,32 @@
         function renderMembers() {
             const container = document.getElementById('member-container');
             container.innerHTML = '';
-            
+
             members.forEach((member, idx) => {
                 const row = document.createElement('div');
                 row.className = 'member-row';
-                
+
                 const nameInput = document.createElement('input');
                 nameInput.type = 'text';
-                nameInput.placeholder = 'Member name';
+                nameInput.placeholder = 'Enter name';
                 nameInput.value = member.name;
                 nameInput.onchange = () => {
-                    member.name = nameInput.value;
+                    members[idx].name = nameInput.value;
+                    updateVisuals();
                     saveData();
                 };
 
-                const prefsDisplay = document.createElement('div');
-                prefsDisplay.textContent = member.preferences.join(', ') || 'None';
-                prefsDisplay.style.padding = '0.75rem';
+                const prefsDisplay = document.createElement('span');
+                prefsDisplay.style.cursor = 'pointer';
+                prefsDisplay.style.textDecoration = 'underline';
+                prefsDisplay.textContent = member.preferences.length > 0 ? `${member.preferences.length} pref${member.preferences.length > 1 ? 's' : ''}` : 'Click to edit';
+                prefsDisplay.onclick = () => editMemberPreferences(idx);
 
                 const contribInput = document.createElement('input');
                 contribInput.type = 'number';
-                contribInput.value = member.contribution;
+                contribInput.value = member.contribution || 200;
                 contribInput.onchange = () => {
-                    member.contribution = parseInt(contribInput.value) || 0;
+                    members[idx].contribution = parseInt(contribInput.value) || 0;
                     updateVisuals();
                     saveData();
                 };
@@ -1080,52 +1084,46 @@
             });
         }
 
-        // Update Visuals
-        function updateVisuals() {
-            const budgetValues = {};
-            categories.forEach(cat => {
-                budgetValues[cat] = parseInt(document.getElementById(`input-${cat}`).value) || 0;
-            });
+        // Edit Member Preferences
+        function editMemberPreferences(memberIdx) {
+            const member = members[memberIdx];
+            const prefs = commonPreferences.map(p => ({
+                name: p,
+                selected: member.preferences.includes(p)
+            }));
 
-            const totalBudget = Object.values(budgetValues).reduce((a, b) => a + b, 0);
-            const totalContributed = members.reduce((sum, m) => sum + (m.contribution || 0), 0);
-            const memberCount = members.filter(m => m.name.trim()).length || members.length;
-            const perPerson = memberCount > 0 ? Math.round(totalBudget / memberCount) : 0;
-
-            document.getElementById('capacity-display').textContent = `R${totalBudget}`;
-            document.getElementById('total-spent').textContent = `R${totalBudget}`;
-            document.getElementById('dynamic-total-display').textContent = `Pool: R${totalContributed}`;
-            document.getElementById('per-person').textContent = `R${perPerson}`;
-
-            const remaining = totalContributed - totalBudget;
-            const remainingDisplay = document.getElementById('remaining-display');
-            const remainingLabel = document.getElementById('remaining-label');
-            
-            if (remaining >= 0) {
-                remainingDisplay.textContent = `R${remaining}`;
-                remainingDisplay.className = 'summary-value good';
-                remainingLabel.textContent = 'Remaining';
-                document.getElementById('over-budget-alert').innerHTML = '';
-            } else {
-                remainingDisplay.textContent = `R${Math.abs(remaining)}`;
-                remainingDisplay.className = 'summary-value warning';
-                remainingLabel.textContent = 'Over Budget';
-                document.getElementById('over-budget-alert').innerHTML = `
-                    <div class="over-budget-warning">⚠️ Over budget by R${Math.abs(remaining)}</div>
+            let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem;">`;
+            prefs.forEach(pref => {
+                html += `
+                    <label class="checkbox-item">
+                        <input type="checkbox" ${pref.selected ? 'checked' : ''} onchange="updatePrefSelection(${memberIdx}, '${pref.name}', this.checked)">
+                        <span>${pref.name}</span>
+                    </label>
                 `;
-            }
-
-            // Update bar chart
-            const totalForBar = totalBudget || 1;
-            Object.keys(budgetValues).forEach(cat => {
-                const percentage = (budgetValues[cat] / totalForBar) * 100;
-                document.getElementById(`bar-${cat}`).style.width = `${percentage}%`;
-                document.getElementById(`val-${cat}`).textContent = `R${budgetValues[cat]}`;
             });
+            html += `</div>`;
+
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            
+            const checkboxes = div.querySelectorAll('input[type="checkbox"]');
+            const selected = Array.from(checkboxes).filter(cb => cb.checked).map((cb, i) => prefs[i].name);
+            members[memberIdx].preferences = selected;
+            renderMembers();
+            saveData();
+        }
+
+        function updatePrefSelection(memberIdx, pref, checked) {
+            if (checked && !members[memberIdx].preferences.includes(pref)) {
+                members[memberIdx].preferences.push(pref);
+            } else if (!checked) {
+                members[memberIdx].preferences = members[memberIdx].preferences.filter(p => p !== pref);
+            }
+            saveData();
         }
 
         function updateMemberCount() {
-            const count = members.length;
+            const count = members.filter(m => m.name.trim()).length;
             document.getElementById('member-count').textContent = count;
         }
 
@@ -1192,28 +1190,55 @@
                 </div>
 
                 <div class="report-section">
-                    <h3>Budget Breakdown</h3>
+                    <h3>Budget Summary</h3>
                     <div class="budget-report">
-                        <div class="budget-item meat">
-                            <div class="category">Meat</div>
-                            <div class="amount">R${budgetValues.meat}</div>
-                        </div>
-                        <div class="budget-item veg">
-                            <div class="category">Veg & Starch</div>
-                            <div class="amount">R${budgetValues.veg}</div>
-                        </div>
-                        <div class="budget-item snacks">
-                            <div class="category">Snacks</div>
-                            <div class="amount">R${budgetValues.snacks}</div>
-                        </div>
-                        <div class="budget-item drinks">
-                            <div class="category">Drinks</div>
-                            <div class="amount">R${budgetValues.drinks}</div>
-                        </div>
-                        <div class="budget-item supplies">
-                            <div class="category">Supplies</div>
-                            <div class="amount">R${budgetValues.supplies}</div>
-                        </div>
+            `;
+
+            const categoryLabels = {
+                meat: 'Meat',
+                veg: 'Veg & Starch',
+                snacks: 'Snacks',
+                drinks: 'Drinks',
+                supplies: 'Supplies'
+            };
+
+            categories.forEach(cat => {
+                html += `
+                    <div class="budget-item ${cat}">
+                        <div class="category">${categoryLabels[cat]}</div>
+                        <div class="amount">R${budgetValues[cat]}</div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+
+                <div class="report-section">
+                    <h3>Preferences Summary</h3>
+                    <div class="preferences-summary">
+            `;
+
+            const prefCount = {};
+            members.forEach(member => {
+                member.preferences.forEach(pref => {
+                    prefCount[pref] = (prefCount[pref] || 0) + 1;
+                });
+            });
+
+            Object.entries(prefCount).forEach(([pref, count]) => {
+                html += `
+                    <div class="preference-card">
+                        <h4>${pref} <span class="preference-count">${count}</span></h4>
+                        <ul class="preference-list">
+                            ${members.filter(m => m.preferences.includes(pref)).map(m => `<li>${m.name}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            });
+
+            html += `
                     </div>
                 </div>
 
@@ -1288,15 +1313,91 @@
                     });
 
                     renderMembers();
+                    renderPreferences();
                     updateVisuals();
-                    alert('✅ Data imported successfully!');
+                    saveData();
+                    alert('Data imported successfully!');
                 } catch (err) {
-                    alert('❌ Failed to import data: ' + err.message);
+                    alert('Failed to import data. Please check the file format.');
                 }
             };
             reader.readAsText(file);
         }
 
+        // Attach event listeners
+        function attachEventListeners() {
+            const inputs = document.querySelectorAll('input[type="range"]');
+            inputs.forEach(input => {
+                input.addEventListener('input', updateVisuals);
+            });
+        }
+
+        // Update Visuals
+        function updateVisuals() {
+            const budgetValues = {};
+            categories.forEach(cat => {
+                budgetValues[cat] = parseInt(document.getElementById(`input-${cat}`).value) || 0;
+            });
+
+            const totalBudget = Object.values(budgetValues).reduce((a, b) => a + b, 0);
+            const totalContributed = members.reduce((sum, m) => sum + (m.contribution || 0), 0);
+            const memberCount = members.filter(m => m.name.trim()).length || members.length;
+            const perPerson = memberCount > 0 ? Math.round(totalBudget / memberCount) : 0;
+
+            document.getElementById('capacity-display').textContent = `R${totalBudget}`;
+            document.getElementById('total-spent').textContent = `R${totalBudget}`;
+            document.getElementById('dynamic-total-display').textContent = `Pool: R${totalContributed}`;
+            document.getElementById('per-person').textContent = `R${perPerson}`;
+
+            const remaining = totalContributed - totalBudget;
+            const remainingDisplay = document.getElementById('remaining-display');
+            const remainingLabel = document.getElementById('remaining-label');
+
+            if (remaining < 0) {
+                remainingDisplay.textContent = `R${Math.abs(remaining)}`;
+                remainingDisplay.className = 'summary-value warning';
+                remainingLabel.textContent = 'Under Funded';
+            } else {
+                remainingDisplay.textContent = `R${remaining}`;
+                remainingDisplay.className = 'summary-value good';
+                remainingLabel.textContent = 'Surplus';
+            }
+
+            // Update budget values display
+            categories.forEach(cat => {
+                document.getElementById(`val-${cat}`).textContent = `R${budgetValues[cat]}`;
+            });
+
+            // Update bar chart
+            if (totalBudget > 0) {
+                categories.forEach(cat => {
+                    const bar = document.getElementById(`bar-${cat}`);
+                    const percentage = (budgetValues[cat] / totalBudget) * 100;
+                    bar.style.width = `${percentage}%`;
+                });
+            }
+
+            // Over budget warning
+            const alertDiv = document.getElementById('over-budget-alert');
+            if (totalBudget > totalContributed) {
+                alertDiv.innerHTML = `<div class="over-budget-warning">⚠️ Under funded by R${totalBudget - totalContributed}</div>`;
+            } else {
+                alertDiv.innerHTML = '';
+            }
+        }
+
+        // Dark Mode
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        }
+
+        // Check for saved dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+        }
+
+        // Clear Form
         function clearForm() {
             if (confirm('Are you sure you want to clear all data?')) {
                 document.getElementById('event-name').value = '';
@@ -1311,23 +1412,12 @@
                 renderMembers();
                 renderPreferences();
                 updateVisuals();
-                localStorage.removeItem(STORAGE_KEY);
+                saveData();
             }
         }
 
-        function toggleDarkMode() {
-            document.body.classList.toggle('dark-mode');
-            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
-        }
-
-        function attachEventListeners() {
-            if (localStorage.getItem('darkMode') === 'true') {
-                document.body.classList.add('dark-mode');
-            }
-        }
-
-        // Start the app
-        window.addEventListener('load', init);
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
