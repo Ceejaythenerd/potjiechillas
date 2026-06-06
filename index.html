@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Potjie Squad & Budget Planner</title>
+    <style>
+        /* Modern Minimalist / Bento Box Aesthetics */
+        :root {
+            --bg-color: #f4f5f7;
+            --card-bg: #ffffff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --accent: #0071e3;
+            --danger: #ff3b30;
+            --success: #34c759;
+            --radius: 24px;
+            --meat: #ff6b6b;
+            --veg: #51cf66;
+            --snacks: #fcc419;
+            --drinks: #339af0;
+            --supplies: #cc5de8;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+        }
+
+        h2, h3 {
+            margin-top: 0;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .header-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        /* Bento Grid Layout */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 1.5rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .bento-card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 2rem;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+        }
+
+        /* Inputs & Form Styles */
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e5e5ea;
+            border-radius: 12px;
+            background-color: #fafafa;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            background-color: #fff;
+        }
+
+        /* Squad Roster Styles */
+        .roster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .total-pool-badge {
+            background-color: var(--accent);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+
+        .member-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .member-row {
+            display: grid;
+            grid-template-columns: 1.5fr 2fr 1fr;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .member-labels {
+            display: grid;
+            grid-template-columns: 1.5fr 2fr 1fr;
+            gap: 0.75rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Budget Calculator Styles */
+        .budget-summary {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .warning { color: var(--danger); }
+        .good { color: var(--success); }
+
+        .bar-container {
+            width: 100%;
+            height: 24px;
+            background-color: #f5f5f7;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            margin-bottom: 2rem;
+        }
+
+        .segment {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        .seg-meat { background-color: var(--meat); }
+        .seg-veg { background-color: var(--veg); }
+        .seg-snacks { background-color: var(--snacks); }
+        .seg-drinks { background-color: var(--drinks); }
+        .seg-supplies { background-color: var(--supplies); }
+
+        .input-group { margin-bottom: 1.25rem; }
+        
+        .input-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--text-main);
+        }
+
+        .legend {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .bento-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <h2 class="header-title">Potjie Chillas Planner</h2>
+
+    <div class="bento-grid">
+        
+        <!-- Squad Roster Card -->
+        <div class="bento-card">
+            <div class="roster-header">
+                <h3>Squad Roster</h3>
+                <div class="total-pool-badge" id="dynamic-total-display">Pool: R2400</div>
+            </div>
+            
+            <div class="member-labels">
+                <span>Name</span>
+                <span>Preferences (Drinks/Diet)</span>
+                <span>Contribution (R)</span>
+            </div>
+            
+            <div class="member-grid" id="member-container">
+                <!-- JavaScript will generate the 12 rows here -->
+            </div>
+        </div>
+
+        <!-- Budget Allocation Card -->
+        <div class="bento-card">
+            <h3>Budget Allocation</h3>
+            
+            <div class="budget-summary">
+                <span id="capacity-display">Capacity: R2400</span>
+                <span id="remaining-text" class="good">Remaining: R0</span>
+            </div>
+
+            <!-- Visual Stacked Bar -->
+            <div class="bar-container">
+                <div id="bar-meat" class="segment seg-meat"></div>
+                <div id="bar-veg" class="segment seg-veg"></div>
+                <div id="bar-snacks" class="segment seg-snacks"></div>
+                <div id="bar-drinks" class="segment seg-drinks"></div>
+                <div id="bar-supplies" class="segment seg-supplies"></div>
+            </div>
+
+            <!-- Budget Sliders -->
+            <div class="input-group">
+                <div class="input-header">
+                    <span><span class="legend seg-meat"></span>Meat</span>
+                    <span id="val-meat">R400</span>
+                </div>
+                <input type="range" id="input-meat" min="0" max="1500" value="400" step="50">
+            </div>
+
+            <div class="input-group">
+                <div class="input-header">
+                    <span><span class="legend seg-veg"></span>Veg & Starch</span>
+                    <span id="val-veg">R250</span>
+                </div>
+                <input type="range" id="input-veg" min="0" max="800" value="250" step="50">
+            </div>
+
+            <div class="input-group">
+                <div class="input-header">
+                    <span><span class="legend seg-snacks"></span>Snacks</span>
+                    <span id="val-snacks">R150</span>
+                </div>
+                <input type="range" id="input-snacks" min="0" max="800" value="150" step="50">
+            </div>
+
+            <div class="input-group">
+                <div class="input-header">
+                    <span><span class="legend seg-drinks"></span>Drinks</span>
+                    <span id="val-drinks">R1250</span>
+                </div>
+                <input type="range" id="input-drinks" min="0" max="2500" value="1250" step="50">
+            </div>
+
+            <div class="input-group">
+                <div class="input-header">
+                    <span><span class="legend seg-supplies"></span>Supplies (Wood, Ice)</span>
+                    <span id="val-supplies">R150</span>
+                </div>
+                <input type="range" id="input-supplies" min="0" max="800" value="150" step="50">
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let maxBudget = 2400;
+        const categories = ['meat', 'veg', 'snacks', 'drinks', 'supplies'];
+        
+        // 1. Generate the 12 Member Rows
+        const memberContainer = document.getElementById('member-container');
+        for(let i = 1; i <= 12; i++) {
+            const row = document.createElement('div');
+            row.className = 'member-row';
+            row.innerHTML = `
+                <input type="text" placeholder="Member ${i}" aria-label="Member Name">
+                <input type="text" placeholder="e.g., Savanna, No Pork" aria-label="Preferences">
+                <input type="number" class="contrib-input" value="200" min="0" step="50" aria-label="Contribution Amount">
+            `;
+            memberContainer.appendChild(row);
+        }
+
+        // 2. Handle Roster Contribution Updates
+        function calculatePool() {
+            let sum = 0;
+            document.querySelectorAll('.contrib-input').forEach(input => {
+                sum += Number(input.value) || 0;
+            });
+            maxBudget = sum;
+            
+            // Update displays
+            document.getElementById('dynamic-total-display').innerText = `Pool: R${maxBudget}`;
+            document.getElementById('capacity-display').innerText = `Capacity: R${maxBudget}`;
+            
+            // Recalculate visuals with new budget
+            updateVisuals();
+        }
+
+        // Attach listeners to all contribution inputs
+        document.querySelectorAll('.contrib-input').forEach(input => {
+            input.addEventListener('input', calculatePool);
+        });
+
+        // 3. Handle Budget Allocation Visuals
+        function updateVisuals() {
+            let totalSpent = 0;
+
+            // Calculate total spent from sliders
+            categories.forEach(cat => {
+                const val = parseInt(document.getElementById(`input-${cat}`).value) || 0;
+                document.getElementById(`val-${cat}`).innerText = `R${val}`;
+                totalSpent += val;
+            });
+
+            // Update remaining budget status
+            const remaining = maxBudget - totalSpent;
+            const remainingEl = document.getElementById('remaining-text');
+            
+            if (remaining < 0) {
+                remainingEl.innerText = `Over Budget: -R${Math.abs(remaining)}`;
+                remainingEl.className = 'warning';
+            } else {
+                remainingEl.innerText = `Remaining: R${remaining}`;
+                remainingEl.className = 'good';
+            }
+
+            // Update the stacked bar widths
+            const scaleBase = Math.max(totalSpent, maxBudget);
+            // Prevent division by zero if everything is 0
+            const divisor = scaleBase === 0 ? 1 : scaleBase; 
+            
+            categories.forEach(cat => {
+                const val = parseInt(document.getElementById(`input-${cat}`).value) || 0;
+                const percentage = (val / divisor) * 100;
+                document.getElementById(`bar-${cat}`).style.width = `${percentage}%`;
+            });
+        }
+
+        // Attach event listeners to all budget sliders
+        categories.forEach(cat => {
+            document.getElementById(`input-${cat}`).addEventListener('input', updateVisuals);
+        });
+
+        // Initialize state on load
+        calculatePool();
+    </script>
+</body>
+</html>
